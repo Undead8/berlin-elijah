@@ -87,9 +87,9 @@ class Berlin::AI::Player
       edges = Hash.new
       node.adjacent_nodes.each do |adj|
         if adj.enemy?
-          edges[adj] = 5 + adj.number_of_soldiers
+          edges[adj] = 3 + adj.number_of_soldiers
         else
-          edges[adj] = 5
+          edges[adj] = 3
         end
       end
       map_graph.add_vertex(node, edges)
