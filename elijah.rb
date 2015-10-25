@@ -120,10 +120,13 @@ class Berlin::AI::Player
     # As a priority, every node will reinforce any adjacent city that is outnumbered.    
     sorted_nodes_first.each do |node|
 
-      adjacent_cities = node.adjacent_nodes & owned_cities
-      adjacent_cities.each do |destination|
-        soldiers_to_move = [(soldiers_in_nodes(destination.adjacent_nodes & game.map.enemy_nodes) - destination.number_of_soldiers - destination.incoming_soldiers), (node.available_soldiers - soldiers_modifier(node, game))].min
-        game.add_move(node, destination, soldiers_to_move) if soldiers_to_move > 0
+      # Only nodes and cities that have no adjacent free cities will reinforce.
+      if node.soldiers_per_turn <= 0 || (node.adjacent_nodes & free_cities).empty?
+        adjacent_cities = node.adjacent_nodes & owned_cities
+        adjacent_cities.each do |destination|
+          soldiers_to_move = [(soldiers_in_nodes(destination.adjacent_nodes & game.map.enemy_nodes) - destination.number_of_soldiers - destination.incoming_soldiers), (node.available_soldiers - soldiers_modifier(node, game))].min
+          game.add_move(node, destination, soldiers_to_move) if soldiers_to_move > 0
+        end
       end
     end
 
