@@ -69,9 +69,9 @@ class Berlin::AI::Player
   def self.soldiers_modifier(node, game) 
     free_cities = game.map.free_nodes.select { |free_node| free_node.soldiers_per_turn > 0 }
 
-    if node.soldiers_per_turn <= 0 || game.turns_left < 5
+    if node.soldiers_per_turn <= 0 || game.turns_left < 5 || (node.adjacent_nodes & free_cities).any?
       return 0
-    elsif (node.adjacent_nodes & free_cities).any? || node.adjacent_nodes.any? { |adj| adj.enemy? && adj.soldiers_per_turn > 0 && adj.number_of_soldiers < soldiers_in_nodes(adj.adjacent_nodes & game.map.owned_nodes) }
+    elsif node.adjacent_nodes.any? { |adj| adj.enemy? && adj.soldiers_per_turn > 0 && adj.number_of_soldiers < soldiers_in_nodes(adj.adjacent_nodes & game.map.owned_nodes) }
       return soldiers_in_nodes(node.adjacent_nodes & game.map.enemy_nodes) / 2
     else
       return soldiers_in_nodes(node.adjacent_nodes & game.map.enemy_nodes)
