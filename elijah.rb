@@ -83,7 +83,8 @@ class Berlin::AI::Player
     map_graph = Graph.new
     game.map.nodes.each do |node|
 
-      # Enemy soldiers on a node inscrease the distance from a previous node to this enemy node.
+      # edges is a hash of the adjacent nodes (keys) and the distance between the adjacent node and the node (values).
+      # Enemy soldiers on a node inscrease the distance from a node to this enemy node.
       edges = Hash.new
       node.adjacent_nodes.each do |adj|
         if adj.enemy?
@@ -92,6 +93,7 @@ class Berlin::AI::Player
           edges[adj] = 3
         end
       end
+      
       map_graph.add_vertex(node, edges)
     end
 
