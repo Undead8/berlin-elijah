@@ -101,7 +101,7 @@ class Berlin::AI::Player
 
     # Returns the sorted list of shortest paths from a node to a list of nodes.
     paths_list = list_of_nodes.map { |dest| map_graph.shortest_path(node, dest) }
-    paths_list.sort_by! { |path| path.length }
+    paths_list.shuffle.sort_by! { |path| path.length }
   end
 
   def self.on_turn(game)
