@@ -78,11 +78,9 @@ class Berlin::AI::Player
     end
   end
 
-  # Method that returns a list of all the shortest paths from a node to a list of nodes, and sort it by length of paths.
-  def self.shortest_paths_list(node, list_of_nodes, game)
-    
-    # Creates a graph of the game map.
-    map_graph = Graph.new
+  # Creates a graph of the game map.
+  def self.create_graph(game)
+    graph = Graph.new
     game.map.nodes.each do |node|
 
       # edges is a hash of the adjacent nodes (keys) and the distance between the adjacent node and the node (values).
@@ -96,16 +94,23 @@ class Berlin::AI::Player
         end
       end
       
-      map_graph.add_vertex(node, edges)
+      graph.add_vertex(node, edges)
     end
+    
+    return graph
+  end
 
-    # Returns the sorted list of shortest paths from a node to a list of nodes.
-    paths_list = list_of_nodes.map { |dest| map_graph.shortest_path(node, dest) }
+  # Method that returns a list of all the shortest paths from a node to a list of nodes, and sort it by length of paths.
+  def self.shortest_paths_list(node, list_of_nodes, graph)
+    paths_list = list_of_nodes.map { |dest| graph.shortest_path(node, dest) }
     paths_list.shuffle.sort_by! { |path| path.length }
   end
 
   def self.on_turn(game)
    
+    # Create a graph of the map.
+    map_graph = create_graph(game)
+
     # attack_moves will store the moves from a node to another node when an attack is launched under Strategy 2.
     attack_moves = Hash.new
    
@@ -137,7 +142,7 @@ class Berlin::AI::Player
 
       # Strategy 1 - if there are free cities and if turn < 9 --> The soldiers will spread out towards at most 3 free cities.
       if free_cities.any? && game.current_turn < 9
-        target_paths_list = shortest_paths_list(node, free_cities, game).take(3)
+        target_paths_list = shortest_paths_list(node, free_cities, map_graph).take(3)
         target_paths_list.select! { |path| path.first.foreign? } if target_paths_list.any? { |path| path.first.foreign? }
         soldiers_left = node.available_soldiers - soldiers_modifier(node, game)
         target_paths_list.each do |path|
@@ -150,7 +155,7 @@ class Berlin::AI::Player
       elsif foreign_cities.any?
         
         # If we outnumber the enemy in at least a path towards a foreign city, the node will launch an attack towards the closest one.
-        target_path = shortest_paths_list(node, foreign_cities, game).select { |path| (soldiers_in_nodes(path & game.map.enemy_nodes) < (node.available_soldiers - soldiers_modifier(node, game) + soldiers_in_nodes(path & game.map.owned_nodes))) || (path.last.number_of_soldiers < soldiers_in_nodes(path.last.adjacent_nodes & game.map.owned_nodes)) }.first
+        target_path = shortest_paths_list(node, foreign_cities, map_graph).select { |path| (soldiers_in_nodes(path & game.map.enemy_nodes) < (node.available_soldiers - soldiers_modifier(node, game) + soldiers_in_nodes(path & game.map.owned_nodes))) || (path.last.number_of_soldiers < soldiers_in_nodes(path.last.adjacent_nodes & game.map.owned_nodes)) }.first
         if target_path && attack_moves[target_path.first.id] != node.id
           destination = target_path.first
           soldiers_to_move = node.available_soldiers - soldiers_modifier(node, game)
@@ -159,14 +164,14 @@ class Berlin::AI::Player
         
         # If we are outnumbered in all shortest paths towards foreign cities, the node that is not a city will reinforce the closest owned city. Cities will do nothing (no else).
         elsif node.soldiers_per_turn <= 0 && node.incoming_soldiers <= 0
-          destination = shortest_paths_list(node, owned_cities, game).first.first
+          destination = shortest_paths_list(node, owned_cities, map_graph).first.first
           soldiers_to_move = node.available_soldiers
           game.add_move(node, destination, soldiers_to_move) if soldiers_to_move > 0
         end
       
       # Strategy 3 - when there is no more foreign cities --> Every owned nodes and cities will attack the closest foreign node.
       else
-        destination = shortest_paths_list(node, game.map.foreign_nodes, game).first.first
+        destination = shortest_paths_list(node, game.map.foreign_nodes, map_graph).first.first
         soldiers_to_move = node.available_soldiers - soldiers_modifier(node, game)
         game.add_move(node, destination, soldiers_to_move) if soldiers_to_move > 0
       end
