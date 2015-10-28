@@ -69,7 +69,7 @@ class Berlin::AI::Player
   def self.soldiers_modifier(node, game) 
     free_cities = game.map.free_nodes.select { |free_node| free_node.soldiers_per_turn > 0 }
 
-    if node.soldiers_per_turn <= 0 || game.turns_left < 5 || (node.adjacent_nodes & free_cities).any?
+    if node.soldiers_per_turn <= 0 || game.turns_left < 8 || (node.adjacent_nodes & free_cities).any?
       return 0
     elsif node.adjacent_nodes.any? { |adj| adj.enemy? && adj.soldiers_per_turn > 0 && adj.number_of_soldiers < soldiers_in_nodes(adj.adjacent_nodes & game.map.owned_nodes) }
       return soldiers_in_nodes(node.adjacent_nodes & game.map.enemy_nodes) / 2
@@ -117,15 +117,17 @@ class Berlin::AI::Player
     sorted_nodes_first = game.map.controlled_nodes.sort { |x, y| x.soldiers_per_turn <=> y.soldiers_per_turn }
 
     # AI starts here.
-    # As a priority, every node will reinforce any adjacent city that is outnumbered.    
-    sorted_nodes_first.each do |node|
+    # As a priority, every node will reinforce any adjacent city that is outnumbered, unless the game will end soon.
+    unless game.turns_left < 8
+      sorted_nodes_first.each do |node|
 
-      # Only nodes and cities that have no adjacent free cities will reinforce.
-      if node.soldiers_per_turn <= 0 || (node.adjacent_nodes & free_cities).empty?
-        adjacent_cities = node.adjacent_nodes & owned_cities
-        adjacent_cities.each do |destination|
-          soldiers_to_move = [(soldiers_in_nodes(destination.adjacent_nodes & game.map.enemy_nodes) - destination.number_of_soldiers - destination.incoming_soldiers), (node.available_soldiers - soldiers_modifier(node, game))].min
-          game.add_move(node, destination, soldiers_to_move) if soldiers_to_move > 0
+        # Only nodes and cities that have no adjacent free cities will reinforce.
+        if node.soldiers_per_turn <= 0 || (node.adjacent_nodes & free_cities).empty?
+          adjacent_cities = node.adjacent_nodes & owned_cities
+          adjacent_cities.each do |destination|
+            soldiers_to_move = [(soldiers_in_nodes(destination.adjacent_nodes & game.map.enemy_nodes) - destination.number_of_soldiers - destination.incoming_soldiers), (node.available_soldiers - soldiers_modifier(node, game))].min
+            game.add_move(node, destination, soldiers_to_move) if soldiers_to_move > 0
+          end
         end
       end
     end
