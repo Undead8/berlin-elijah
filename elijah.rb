@@ -56,6 +56,18 @@ class Graph
       end
     end
   end
+
+  # Method that calculates the distance from a node through a path. start is a node and path_to_finish is an array of nodes.
+  def distance_between_nodes(start, path_to_finish)
+    full_path = [start] + path_to_finish
+    distance = 0
+
+    while full_path.length > 1
+      distance += @vertices[full_path.shift][full_path.first]
+    end
+
+    return distance
+  end
 end
 
 class Berlin::AI::Player
@@ -71,8 +83,10 @@ class Berlin::AI::Player
 
     if node.soldiers_per_turn <= 0 || game.turns_left < 8 || (node.adjacent_nodes & free_cities).any?
       return 0
+
     elsif node.adjacent_nodes.any? { |adj| adj.enemy? && adj.soldiers_per_turn > 0 && adj.number_of_soldiers < soldiers_in_nodes(adj.adjacent_nodes & game.map.owned_nodes) }
       return soldiers_in_nodes(node.adjacent_nodes & game.map.enemy_nodes) / 2
+
     else
       return soldiers_in_nodes(node.adjacent_nodes & game.map.enemy_nodes)
     end
@@ -88,9 +102,13 @@ class Berlin::AI::Player
       edges = Hash.new
       node.adjacent_nodes.each do |adj|
         if adj.enemy?
-          edges[adj] = 3 + adj.number_of_soldiers
+          edges[adj] = 5 + adj.number_of_soldiers
+
+        elsif adj.owned? && adj.soldiers_per_turn > 0
+          edges[adj] = 4
+          
         else 
-          edges[adj] = 3
+          edges[adj] = 5
         end
       end
       
@@ -103,7 +121,13 @@ class Berlin::AI::Player
   # Method that returns a list of all the shortest paths from a node to a list of nodes, and sort it by length of paths.
   def self.shortest_paths_list(node, list_of_nodes, graph)
     paths_list = list_of_nodes.map { |dest| graph.shortest_path(node, dest) }
-    paths_list.shuffle.sort_by! { |path| path.length }
+    paths_list.shuffle.sort_by! { |path| graph.distance_between_nodes(node, path) }
+  end
+
+  # Method that select paths from a list of paths, based on where we outnumber the enemy. 
+  # list_of_paths should be a shortest_paths_list.
+  def self.assault_paths(node, list_of_paths, game)
+    list_of_paths.keep_if { |path| (soldiers_in_nodes(path & game.map.enemy_nodes) < (node.available_soldiers - soldiers_modifier(node, game) + soldiers_in_nodes(path & game.map.owned_nodes))) || (path.last.number_of_soldiers < soldiers_in_nodes(path.last.adjacent_nodes & game.map.owned_nodes)) }
   end
 
   def self.on_turn(game)
@@ -123,27 +147,25 @@ class Berlin::AI::Player
 
     # AI starts here.
     # As a priority, every node will reinforce any adjacent city that is outnumbered, unless the game will end soon.
-    unless game.turns_left < 8
-      sorted_nodes_first.each do |node|
+    # Nodes and cities that have an adjacent free cities will not reinforce.
+    sorted_nodes_first.each do |node|
 
-        # Only nodes and cities that have no adjacent free cities will reinforce.
-        if node.soldiers_per_turn <= 0 || (node.adjacent_nodes & free_cities).empty?
-          adjacent_cities = node.adjacent_nodes & owned_cities
-          adjacent_cities.each do |destination|
-            soldiers_to_move = [(soldiers_in_nodes(destination.adjacent_nodes & game.map.enemy_nodes) - destination.number_of_soldiers - destination.incoming_soldiers), (node.available_soldiers - soldiers_modifier(node, game))].min
-            game.add_move(node, destination, soldiers_to_move) if soldiers_to_move > 0
-          end
+      if (node.adjacent_nodes & free_cities).empty? && game.turns_left > 7
+        adjacent_cities = node.adjacent_nodes & owned_cities
+        adjacent_cities.each do |destination|
+          soldiers_to_move = [(soldiers_modifier(destination, game) - destination.number_of_soldiers - destination.incoming_soldiers), (node.available_soldiers - soldiers_modifier(node, game))].min
+          game.add_move(node, destination, soldiers_to_move) if soldiers_to_move > 0
         end
       end
     end
 
     # Then, the node will use one of the 3 strategies below.
-    sorted_cities_first.each do |node|    
-
+    sorted_cities_first.each do |node|
+     
       # Strategy 1 - if there are free cities and if turn < 9 --> The soldiers will spread out towards at most 3 free cities.
       if free_cities.any? && game.current_turn < 9
-        target_paths_list = shortest_paths_list(node, free_cities, map_graph).take(3)
-        target_paths_list.select! { |path| path.first.foreign? } if target_paths_list.any? { |path| path.first.foreign? }
+        target_paths_list = assault_paths(node, shortest_paths_list(node, foreign_cities, map_graph), game).take(3)
+        target_paths_list.keep_if { |path| path.first.foreign? } if target_paths_list.any? { |path| path.first.foreign? }
         soldiers_left = node.available_soldiers - soldiers_modifier(node, game)
         target_paths_list.each do |path|
           destination = path.first
@@ -155,7 +177,7 @@ class Berlin::AI::Player
       elsif foreign_cities.any?
         
         # If we outnumber the enemy in at least a path towards a foreign city, the node will launch an attack towards the closest one.
-        target_path = shortest_paths_list(node, foreign_cities, map_graph).select { |path| (soldiers_in_nodes(path & game.map.enemy_nodes) < (node.available_soldiers - soldiers_modifier(node, game) + soldiers_in_nodes(path & game.map.owned_nodes))) || (path.last.number_of_soldiers < soldiers_in_nodes(path.last.adjacent_nodes & game.map.owned_nodes)) }.first
+        target_path = assault_paths(node, shortest_paths_list(node, foreign_cities, map_graph), game).first
         if target_path && attack_moves[target_path.first.id] != node.id
           destination = target_path.first
           soldiers_to_move = node.available_soldiers - soldiers_modifier(node, game)
