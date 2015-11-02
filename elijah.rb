@@ -12,7 +12,7 @@ class Graph
     @vertices[name] = edges
   end
   
-  # Method that find the shortest path between 2 nodes using the Dijkstra algorithm. 
+  # Method that finds the shortest path between 2 nodes using the Dijkstra algorithm. 
   def shortest_path(start, finish)
     maxint = Float::INFINITY
     distances = Hash.new
@@ -96,7 +96,7 @@ class Berlin::AI::Player
       
       graph.add_vertex(node, edges)
     end
-    
+
     return graph
   end
 
